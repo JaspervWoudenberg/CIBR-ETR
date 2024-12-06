@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Survey with BaseRows Integration</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .survey-section {
+            display: none;
+        }
+        .question {
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .likert-scale {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+        }
+        .likert-scale label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 22%;
+        }
+        .likert-scale input {
+            margin-bottom: 5px;
+        }
+        #submitButton {
+            display: none;
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #errorMessage {
+            color: red;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="passwordSection">
+        <h2>Survey Access</h2>
+        <p>Please enter the password to access the survey:</p>
+        <input type="password" id="passwordInput" placeholder="Enter password">
+        <button onclick="checkPassword()">Submit</button>
+    </div>
+
+    <div id="surveySection" class="survey-section">
+        <h1>Comprehensive Survey</h1>
+        <p id="errorMessage">Error: Could not submit data. Please try again.</p>
+        <form id="surveyForm">
+            <div id="questionsContainer"></div>
+            <button type="button" id="submitButton" onclick="submitSurvey()">Submit Survey</button>
+        </form>
+    </div>
+
+    <div id="resultsSection" class="survey-section">
+        <h2>Survey Completed</h2>
+        <p>Thank you for completing the survey!</p>
+    </div>
+
+    <script>
+        // BaseRows Configuration - REPLACE THESE WITH YOUR ACTUAL CREDENTIALS
+        const BASEROWS_API_URL = 'https://baserow.io/database/161382/table/403731/719712';
+        const BASEROWS_TOKEN = 'SECRETTOKEN';
+
+        const questions = [
+            "I feel satisfied with my current work environment",
+            "I have opportunities for professional growth",
+            "My workload is manageable",
+            "I feel supported by my team",
+            "I have clear career goals",
+            "I am motivated to perform my best",
+            "Communication in my workplace is effective",
+            "I have a good work-life balance",
+            "I feel valued by my organization",
+            "I have the resources needed to do my job well",
+            "I am comfortable sharing my ideas",
+            "I see a future for myself in this organization",
+            "I receive constructive feedback",
+            "I am challenged in a positive way",
+            "I feel my skills are being utilized",
+            "I am satisfied with my current role",
+            "I have opportunities to learn new skills",
+            "I feel connected to my team",
+            "I believe in the mission of my organization",
+            "I am proud of the work I do",
+            "I see potential for advancement"
+        ];
+
+        function checkPassword() {
+            const passwordInput = document.getElementById('passwordInput');
+            const passwordSection = document.getElementById('passwordSection');
+            const surveySection = document.getElementById('surveySection');
+            
+            if (passwordInput.value === "survey2024") {
+                passwordSection.style.display = 'none';
+                surveySection.style.display = 'block';
+                generateQuestions();
+            } else {
+                alert('Incorrect password. Please try again.');
+                passwordInput.value = ''; 
+            }
+        }
+
+        function generateQuestions() {
+            const container = document.getElementById('questionsContainer');
+            const submitButton = document.getElementById('submitButton');
+
+            questions.forEach((question, index) => {
+                const questionDiv = document.createElement('div');
+                questionDiv.className = 'question';
+                questionDiv.innerHTML = `
+                    <p>${index + 1}. ${question}</p>
+                    <div class="likert-scale">
+                        <label>
+                            <input type="radio" name="q${index}" value="1" required>
+                            Strongly Disagree
+                        </label>
+                        <label>
+                            <input type="radio" name="q${index}" value="2">
+                            Disagree
+                        </label>
+                        <label>
+                            <input type="radio" name="q${index}" value="3">
+                            Agree
+                        </label>
+                        <label>
+                            <input type="radio" name="q${index}" value="4">
+                            Strongly Agree
+                        </label>
+                    </div>
+                `;
+                container.appendChild(questionDiv);
+            });
+
+            submitButton.style.display = 'block';
+        }
+
+        async function submitSurvey() {
+            const surveySection = document.getElementById('surveySection');
+            const resultsSection = document.getElementById('resultsSection');
+            const errorMessage = document.getElementById('errorMessage');
+
+            // Basic validation
+            const form = document.getElementById('surveyForm');
+            const radios = form.querySelectorAll('input[type="radio"]');
+            const radioGroups = new Set(Array.from(radios).map(radio => radio.name));
+            
+            let allQuestionsAnswered = true;
+            radioGroups.forEach(groupName => {
+                const groupRadios = form.querySelectorAll(`input[name="${groupName}"]`);
+                if (!Array.from(groupRadios).some(radio => radio.checked)) {
+                    allQuestionsAnswered = false;
+                }
+            });
+
+            if (!allQuestionsAnswered) {
+                alert('Please answer all questions before submitting.');
+                return;
+            }
+
+            // Prepare survey data
+            const surveyData = {
+                survey_date: new Date().toISOString(),
+                total_score: 0
+            };
+
+            // Collect responses
+            radioGroups.forEach((groupName, index) => {
+                const selectedRadio = document.querySelector(`input[name="${groupName}"]:checked`);
+                surveyData[`q${index}_response`] = selectedRadio ? selectedRadio.value : null;
+                surveyData.total_score += parseInt(selectedRadio.value);
+            });
+
+            try {
+                // Submit to BaseRows
+                const response = await fetch(BASEROWS_API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Token ${BASEROWS_TOKEN}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(surveyData)
+                });
+
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+
+                // Hide survey, show results
+                surveySection.style.display = 'none';
+                resultsSection.style.display = 'block';
+                errorMessage.style.display = 'none';
+
+            } catch (error) {
+                console.error('Submission error:', error);
+                errorMessage.style.display = 'block';
+            }
+        }
+    </script>
+</body>
+</html>
